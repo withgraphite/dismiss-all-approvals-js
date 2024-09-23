@@ -29237,9 +29237,12 @@ async function run() {
         console.log(approvals.map(approval => approval.id));
     }
     catch (error) {
-        // Fail the workflow run if an error occurs
-        if (error instanceof Error)
+        if (error instanceof Error) {
+            if (error.message.includes('Not Found')) {
+                console.warn('Did you set the correct permissions?');
+            }
             core.setFailed(error.message);
+        }
     }
 }
 async function getPullRequestApprovals({ octokit, pr }) {

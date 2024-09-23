@@ -14,8 +14,12 @@ export async function run(): Promise<void> {
 
     console.log(approvals.map(approval => approval.id))
   } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    if (error instanceof Error) {
+      if (error.message.includes('Not Found')) {
+        console.warn('Did you set the correct permissions?')
+      }
+      core.setFailed(error.message)
+    }
   }
 }
 
