@@ -7,6 +7,12 @@ branding:
   icon: 'heart'
   color: 'red'
 
+inputs:
+  github-token:
+    description:
+      'A GITHUB_TOKEN secret or PAT that has write access to the repository'
+    required: true
+
 runs:
   using: node20
   main: dist/index.js

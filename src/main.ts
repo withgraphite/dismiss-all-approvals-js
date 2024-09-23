@@ -1,4 +1,5 @@
 import * as core from '@actions/core'
+import * as github from '@actions/github'
 
 /**
  * The main function for the action.
@@ -6,9 +7,34 @@ import * as core from '@actions/core'
  */
 export async function run(): Promise<void> {
   try {
-    console.log('Hello World')
+    const token = core.getInput('github-token', { required: true })
+    const pr = github.context.payload.pull_request
+    const octokit = github.getOctokit(token)
+    const approvals = await getPullRequestApprovals({ octokit, pr })
+
+    console.log(approvals.map(approval => approval.id))
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message)
   }
+}
+
+async function getPullRequestApprovals({
+  octokit,
+  pr
+}: {
+  octokit: ReturnType<typeof github.getOctokit>
+  pr: typeof github.context.payload.pull_request
+}) {
+  if (!pr) {
+    throw new Error(
+      'event context does not contain pull request data - ensure this action was triggered on a `pull_request` event'
+    )
+  }
+  const result = await octokit.rest.pulls.listReviews({
+    owner: pr.owner,
+    repo: pr.repo,
+    pull_number: pr.number
+  })
+  return result.data.filter(review => review.state === 'APPROVED')
 }
