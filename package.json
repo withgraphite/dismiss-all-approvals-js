@@ -1,22 +1,17 @@
 {
-  "name": "typescript-action",
-  "description": "GitHub Actions TypeScript template",
+  "name": "dismiss-stale-reviews",
+  "description": "Dismisses stale reviews on a pull request if the diff has changed",
   "version": "0.0.0",
-  "author": "",
+  "author": "Graphite",
   "private": true,
-  "homepage": "https://github.com/actions/typescript-action",
+  "homepage": "https://github.com/withgraphite/dismiss-stale-reviews",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/typescript-action.git"
+    "url": "git+https://github.com/withgraphite/dismiss-stale-reviews.git"
   },
   "bugs": {
     "url": "https://github.com/actions/typescript-action/issues"
   },
-  "keywords": [
-    "actions",
-    "node",
-    "setup"
-  ],
   "exports": {
     ".": "./dist/index.js"
   },
@@ -35,7 +30,6 @@
     "test": "npx jest",
     "all": "npm run format:write && npm run lint && npm run test && npm run coverage && npm run package"
   },
-  "license": "MIT",
   "jest": {
     "preset": "ts-jest",
     "verbose": true,
