@@ -37,8 +37,8 @@ async function getPullRequestApprovals({
   }
   console.log(pr)
   const result = await octokit.rest.pulls.listReviews({
-    owner: pr.owner,
-    repo: pr.repo,
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
     pull_number: pr.number
   })
   return result.data.filter(review => review.state === 'APPROVED')
