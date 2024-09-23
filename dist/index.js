@@ -29249,6 +29249,7 @@ async function getPullRequestApprovals({ octokit, pr }) {
     if (!pr) {
         throw new Error('event context does not contain pull request data - ensure this action was triggered on a `pull_request` event');
     }
+    console.log(pr);
     const result = await octokit.rest.pulls.listReviews({
         owner: pr.owner,
         repo: pr.repo,
