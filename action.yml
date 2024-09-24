@@ -14,5 +14,16 @@ inputs:
     required: true
 
 runs:
-  using: node20
-  main: dist/index.js
+  using: composite
+  steps:
+    - name: Test pre-step
+      run: echo "Hello, World!"
+      shell: bash
+
+    - name: JS step
+      using: node20
+      main: dist/index.js
+
+    - name: Test post-step
+      run: echo "Goodbye, World!"
+      shell: bash
