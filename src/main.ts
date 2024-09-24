@@ -1,7 +1,6 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
-const DISMISS_MESSAGE = "This PR's diff has changed since it was approved"
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
@@ -26,7 +25,8 @@ export async function run(): Promise<void> {
     await dismissApprovals({
       approvalIds: approvals.map(approval => approval.id),
       octokit,
-      prNumber: pr.number
+      prNumber: pr.number,
+      reason: core.getInput('reason', { required: true })
     })
   } catch (error) {
     if (error instanceof Error) {
@@ -58,11 +58,13 @@ async function getPullRequestApprovals({
 async function dismissApprovals({
   approvalIds,
   octokit,
-  prNumber
+  prNumber,
+  reason
 }: {
   approvalIds: number[]
   octokit: Octokit
   prNumber: number
+  reason: string
 }) {
   if (approvalIds.length === 0) {
     return
@@ -75,7 +77,7 @@ async function dismissApprovals({
         repo: github.context.repo.repo,
         pull_number: prNumber,
         review_id: approvalId,
-        message: DISMISS_MESSAGE
+        message: reason
       })
     )
   )

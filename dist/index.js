@@ -29224,7 +29224,6 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = run;
 const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
-const DISMISS_MESSAGE = "This PR's diff has changed since it was approved";
 /**
  * The main function for the action.
  * @returns {Promise<void>} Resolves when the action is complete.
@@ -29246,7 +29245,8 @@ async function run() {
         await dismissApprovals({
             approvalIds: approvals.map(approval => approval.id),
             octokit,
-            prNumber: pr.number
+            prNumber: pr.number,
+            reason: core.getInput('reason', { required: true })
         });
     }
     catch (error) {
@@ -29266,7 +29266,7 @@ async function getPullRequestApprovals({ octokit, prNumber }) {
     });
     return result.data.filter(review => review.state === 'APPROVED');
 }
-async function dismissApprovals({ approvalIds, octokit, prNumber }) {
+async function dismissApprovals({ approvalIds, octokit, prNumber, reason }) {
     if (approvalIds.length === 0) {
         return;
     }
@@ -29275,7 +29275,7 @@ async function dismissApprovals({ approvalIds, octokit, prNumber }) {
         repo: github.context.repo.repo,
         pull_number: prNumber,
         review_id: approvalId,
-        message: DISMISS_MESSAGE
+        message: reason
     })));
 }
 

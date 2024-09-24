@@ -1,5 +1,5 @@
-name: 'Dismiss stale reviews'
-description: 'Dismisses stale reviews on a pull request if the diff has changed'
+name: 'Dismiss all approvals'
+description: 'Dismisses all approvals on a pull request if the diff has changed'
 author: 'Graphite'
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
@@ -11,6 +11,9 @@ inputs:
   github-token:
     description:
       'A GITHUB_TOKEN secret or PAT that has write access to the repository'
+    required: true
+  reason:
+    description: 'The reason for dismissing the approvals'
     required: true
 
 runs:
