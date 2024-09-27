@@ -14,14 +14,12 @@ export async function run(): Promise<void> {
         'event context does not contain pull request data - ensure this action was triggered on a `pull_request` event'
       )
     }
-    console.log(pr)
     const octokit = github.getOctokit(token)
     const approvals = await getPullRequestApprovals({
       octokit,
       prNumber: pr.number
     })
 
-    console.log(approvals.map(approval => approval.id))
     await dismissApprovals({
       approvalIds: approvals.map(approval => approval.id),
       octokit,
