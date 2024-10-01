@@ -29268,13 +29268,23 @@ async function dismissApprovals({ approvalIds, octokit, prNumber, reason }) {
     if (approvalIds.length === 0) {
         return;
     }
-    await Promise.all(approvalIds.map(approvalId => octokit.rest.pulls.dismissReview({
+    await octokit.rest.issues.createComment({
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
-        pull_number: prNumber,
-        review_id: approvalId,
-        message: reason
-    })));
+        issue_number: prNumber,
+        body: `dismiss_stale_approvals dry run: Would have dismissed ${approvalIds.length} approvals with reason:\n\n${reason}`
+    });
+    // await Promise.all(
+    //   approvalIds.map(approvalId =>
+    //     octokit.rest.pulls.dismissReview({
+    //       owner: github.context.repo.owner,
+    //       repo: github.context.repo.repo,
+    //       pull_number: prNumber,
+    //       review_id: approvalId,
+    //       message: reason
+    //     })
+    //   )
+    // )
 }
 
 
