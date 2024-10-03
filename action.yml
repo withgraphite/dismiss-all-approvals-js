@@ -18,7 +18,7 @@ inputs:
   dry-run:
     description: 'Comment on the PR instead of dismissing approvals.'
     required: false
-    default: true
+    default: false
 
 runs:
   using: node20
