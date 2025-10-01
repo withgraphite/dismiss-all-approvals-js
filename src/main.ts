@@ -45,12 +45,22 @@ async function getPullRequestApprovals({
   octokit: Octokit
   prNumber: number
 }) {
-  const result = await octokit.rest.pulls.listReviews({
-    owner: github.context.repo.owner,
-    repo: github.context.repo.repo,
-    pull_number: prNumber
-  })
-  return result.data.filter(review => review.state === 'APPROVED')
+  const approvals = []
+
+  for (let page = 1; ; ++page) {
+    const result = await octokit.rest.pulls.listReviews({
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
+      pull_number: prNumber,
+      page: page,
+    })
+    approvals.push(...result.data.filter(review => review.state === 'APPROVED'))
+    if (!result.headers.link || !result.headers.link.includes('rel="next"')) {
+      break
+    }
+  }
+
+  return approvals
 }
 
 async function dismissApprovals({
