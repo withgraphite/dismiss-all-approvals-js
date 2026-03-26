@@ -52,7 +52,7 @@ async function getPullRequestApprovals({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
       pull_number: prNumber,
-      page: page,
+      page: page
     })
     approvals.push(...result.data.filter(review => review.state === 'APPROVED'))
     if (!result.headers.link || !result.headers.link.includes('rel="next"')) {
