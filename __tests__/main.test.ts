@@ -10,10 +10,8 @@ import * as core from '@actions/core'
 import * as github from '@actions/github'
 import * as main from '../src/main'
 
-const JOB_START_SHA = 'sha-that-started-the-job'
-const CURRENT_HEAD_SHA = 'current-head-sha'
+const EVENT_HEAD_SHA = 'event-head-sha'
 const OLDER_SHA = 'older-sha'
-const NEWER_SHA = 'newer-head-sha'
 const REASON = 'Pull request updated'
 
 type Review = {
@@ -33,10 +31,6 @@ function review(id: number, state: string, commitId: string | null): Review {
     state,
     commit_id: commitId
   }
-}
-
-function pullRequest(sha: string): { data: { head: { sha: string } } } {
-  return { data: { head: { sha } } }
 }
 
 function reviewsResponse(reviews: Review[]): {
@@ -95,25 +89,22 @@ describe('action', () => {
     jest.restoreAllMocks()
   })
 
-  it('keeps an approval of the current head when the head is still the SHA that started the job', async () => {
+  it('keeps an approval of the event head SHA', async () => {
     github.context.payload = {
       pull_request: {
         number: 42,
-        head: { sha: CURRENT_HEAD_SHA }
+        head: { sha: EVENT_HEAD_SHA }
       }
     }
-    pullsGet.mockResolvedValue(pullRequest(CURRENT_HEAD_SHA))
     listReviews.mockResolvedValue(
-      reviewsResponse([review(101, 'APPROVED', CURRENT_HEAD_SHA)])
+      reviewsResponse([review(101, 'APPROVED', EVENT_HEAD_SHA)])
     )
 
     await main.run()
 
     expect(setFailedMock).not.toHaveBeenCalled()
-    expect(pullsGet).toHaveBeenCalledTimes(1)
-    expect(pullsGet.mock.invocationCallOrder[0]).toBeLessThan(
-      listReviews.mock.invocationCallOrder[0]
-    )
+    expect(pullsGet).not.toHaveBeenCalled()
+    expect(listReviews).toHaveBeenCalled()
     expect(dismissReview).not.toHaveBeenCalled()
   })
 
@@ -121,10 +112,9 @@ describe('action', () => {
     github.context.payload = {
       pull_request: {
         number: 42,
-        head: { sha: CURRENT_HEAD_SHA }
+        head: { sha: EVENT_HEAD_SHA }
       }
     }
-    pullsGet.mockResolvedValue(pullRequest(CURRENT_HEAD_SHA))
     listReviews.mockResolvedValue(
       reviewsResponse([
         review(201, 'APPROVED', OLDER_SHA),
@@ -136,13 +126,7 @@ describe('action', () => {
     await main.run()
 
     expect(setFailedMock).not.toHaveBeenCalled()
-    expect(pullsGet).toHaveBeenCalledTimes(2)
-    expect(pullsGet.mock.invocationCallOrder[0]).toBeLessThan(
-      listReviews.mock.invocationCallOrder[0]
-    )
-    expect(pullsGet.mock.invocationCallOrder[1]).toBeLessThan(
-      dismissReview.mock.invocationCallOrder[0]
-    )
+    expect(pullsGet).not.toHaveBeenCalled()
     expect(dismissReview).toHaveBeenCalledTimes(1)
     expect(dismissReview).toHaveBeenCalledWith({
       owner: 'x-clients',
@@ -153,69 +137,24 @@ describe('action', () => {
     })
   })
 
-  it('keeps an approval of the newest head when the head moves before reviews are listed', async () => {
-    github.context.payload = {
-      pull_request: {
-        number: 42,
-        head: { sha: JOB_START_SHA }
-      }
-    }
-    pullsGet.mockResolvedValue(pullRequest(NEWER_SHA))
-    listReviews.mockResolvedValue(
-      reviewsResponse([review(301, 'APPROVED', NEWER_SHA)])
-    )
-
-    await main.run()
-
-    expect(setFailedMock).not.toHaveBeenCalled()
-    expect(pullsGet).toHaveBeenCalledTimes(1)
-    expect(dismissReview).not.toHaveBeenCalled()
-  })
-
-  it('dismisses an approval of the SHA that started the run when the head has moved', async () => {
-    github.context.payload = {
-      pull_request: {
-        number: 42,
-        head: { sha: JOB_START_SHA }
-      }
-    }
-    pullsGet.mockResolvedValue(pullRequest(NEWER_SHA))
-    listReviews.mockResolvedValue(
-      reviewsResponse([review(401, 'APPROVED', JOB_START_SHA)])
-    )
-
-    await main.run()
-
-    expect(setFailedMock).not.toHaveBeenCalled()
-    expect(pullsGet).toHaveBeenCalledTimes(2)
-    expect(dismissReview).toHaveBeenCalledTimes(1)
-    expect(dismissReview).toHaveBeenCalledWith({
-      owner: 'x-clients',
-      repo: 'x-android',
-      pull_number: 42,
-      review_id: 401,
-      message: REASON
-    })
-  })
-
   it('dismisses an approval with no commit_id and logs the review id', async () => {
     github.context.payload = {
       pull_request: {
         number: 42,
-        head: { sha: CURRENT_HEAD_SHA }
+        head: { sha: EVENT_HEAD_SHA }
       }
     }
-    pullsGet.mockResolvedValue(pullRequest(CURRENT_HEAD_SHA))
     listReviews.mockResolvedValue(
       reviewsResponse([
         review(501, 'APPROVED', null),
-        review(502, 'APPROVED', CURRENT_HEAD_SHA)
+        review(502, 'APPROVED', EVENT_HEAD_SHA)
       ])
     )
 
     await main.run()
 
     expect(setFailedMock).not.toHaveBeenCalled()
+    expect(pullsGet).not.toHaveBeenCalled()
     expect(infoMock).toHaveBeenCalledWith(
       'Review 501 is missing commit_id; dismissing it'
     )
@@ -225,41 +164,6 @@ describe('action', () => {
       repo: 'x-android',
       pull_number: 42,
       review_id: 501,
-      message: REASON
-    })
-  })
-
-  it('keeps an approval that matches the head fetched immediately before dismissal', async () => {
-    github.context.payload = {
-      pull_request: {
-        number: 42,
-        head: { sha: JOB_START_SHA }
-      }
-    }
-    pullsGet
-      .mockResolvedValueOnce(pullRequest(NEWER_SHA))
-      .mockResolvedValueOnce(pullRequest(OLDER_SHA))
-      .mockResolvedValueOnce(pullRequest(NEWER_SHA))
-    listReviews.mockResolvedValue(
-      reviewsResponse([
-        review(601, 'APPROVED', OLDER_SHA),
-        review(602, 'APPROVED', JOB_START_SHA)
-      ])
-    )
-
-    await main.run()
-
-    expect(setFailedMock).not.toHaveBeenCalled()
-    expect(pullsGet).toHaveBeenCalledTimes(3)
-    expect(pullsGet.mock.invocationCallOrder[1]).toBeLessThan(
-      dismissReview.mock.invocationCallOrder[0]
-    )
-    expect(dismissReview).toHaveBeenCalledTimes(1)
-    expect(dismissReview).toHaveBeenCalledWith({
-      owner: 'x-clients',
-      repo: 'x-android',
-      pull_number: 42,
-      review_id: 602,
       message: REASON
     })
   })
