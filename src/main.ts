@@ -21,7 +21,7 @@ export async function run(): Promise<void> {
     })
 
     await dismissApprovals({
-      approvalIds: approvals.map(approval => approval.id),
+      approvals,
       octokit,
       prNumber: pr.number,
       reason: core.getInput('reason', { required: true })
@@ -38,23 +38,61 @@ export async function run(): Promise<void> {
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
+type Approval = {
+  id: number
+  commit_id: string | null
+}
+
+async function getPullRequestHeadSha({
+  octokit,
+  prNumber
+}: {
+  octokit: Octokit
+  prNumber: number
+}): Promise<string> {
+  const pullRequest = await octokit.rest.pulls.get({
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
+    pull_number: prNumber
+  })
+
+  return pullRequest.data.head.sha
+}
+
 async function getPullRequestApprovals({
   octokit,
   prNumber
 }: {
   octokit: Octokit
   prNumber: number
-}) {
-  const approvals = []
+}): Promise<Approval[]> {
+  const headSha = await getPullRequestHeadSha({ octokit, prNumber })
+  const approvals: Approval[] = []
 
   for (let page = 1; ; ++page) {
     const result = await octokit.rest.pulls.listReviews({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
       pull_number: prNumber,
-      page: page,
+      page: page
     })
-    approvals.push(...result.data.filter(review => review.state === 'APPROVED'))
+
+    for (const review of result.data) {
+      if (review.state !== 'APPROVED') {
+        continue
+      }
+
+      if (!review.commit_id) {
+        core.info(`Review ${review.id} is missing commit_id; dismissing it`)
+        approvals.push({ id: review.id, commit_id: null })
+        continue
+      }
+
+      if (review.commit_id !== headSha) {
+        approvals.push({ id: review.id, commit_id: review.commit_id })
+      }
+    }
+
     if (!result.headers.link || !result.headers.link.includes('rel="next"')) {
       break
     }
@@ -64,17 +102,17 @@ async function getPullRequestApprovals({
 }
 
 async function dismissApprovals({
-  approvalIds,
+  approvals,
   octokit,
   prNumber,
   reason
 }: {
-  approvalIds: number[]
+  approvals: Approval[]
   octokit: Octokit
   prNumber: number
   reason: string
-}) {
-  if (approvalIds.length === 0) {
+}): Promise<void> {
+  if (approvals.length === 0) {
     return
   }
 
@@ -83,20 +121,27 @@ async function dismissApprovals({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
       issue_number: prNumber,
-      body: `dismiss_stale_approvals dry run: Would have dismissed ${approvalIds.length} approvals with reason:\n\n${reason}`
+      body: `dismiss_stale_approvals dry run: Would have dismissed ${approvals.length} approvals with reason:\n\n${reason}`
     })
     return
   }
 
   await Promise.all(
-    approvalIds.map(approvalId =>
-      octokit.rest.pulls.dismissReview({
+    approvals.map(async approval => {
+      // The head can move after listReviews. Fetch it again immediately
+      // before dismissing so an approval of the live head is kept.
+      const headSha = await getPullRequestHeadSha({ octokit, prNumber })
+      if (approval.commit_id === headSha) {
+        return
+      }
+
+      await octokit.rest.pulls.dismissReview({
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
         pull_number: prNumber,
-        review_id: approvalId,
+        review_id: approval.id,
         message: reason
       })
-    )
+    })
   )
 }

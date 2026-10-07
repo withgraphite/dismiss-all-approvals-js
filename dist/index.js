@@ -29241,7 +29241,7 @@ async function run() {
             prNumber: pr.number
         });
         await dismissApprovals({
-            approvalIds: approvals.map(approval => approval.id),
+            approvals,
             octokit,
             prNumber: pr.number,
             reason: core.getInput('reason', { required: true })
@@ -29256,24 +29256,45 @@ async function run() {
         }
     }
 }
+async function getPullRequestHeadSha({ octokit, prNumber }) {
+    const pullRequest = await octokit.rest.pulls.get({
+        owner: github.context.repo.owner,
+        repo: github.context.repo.repo,
+        pull_number: prNumber
+    });
+    return pullRequest.data.head.sha;
+}
 async function getPullRequestApprovals({ octokit, prNumber }) {
+    const headSha = await getPullRequestHeadSha({ octokit, prNumber });
     const approvals = [];
     for (let page = 1;; ++page) {
         const result = await octokit.rest.pulls.listReviews({
             owner: github.context.repo.owner,
             repo: github.context.repo.repo,
             pull_number: prNumber,
-            page: page,
+            page: page
         });
-        approvals.push(...result.data.filter(review => review.state === 'APPROVED'));
+        for (const review of result.data) {
+            if (review.state !== 'APPROVED') {
+                continue;
+            }
+            if (!review.commit_id) {
+                core.info(`Review ${review.id} is missing commit_id; dismissing it`);
+                approvals.push({ id: review.id, commit_id: null });
+                continue;
+            }
+            if (review.commit_id !== headSha) {
+                approvals.push({ id: review.id, commit_id: review.commit_id });
+            }
+        }
         if (!result.headers.link || !result.headers.link.includes('rel="next"')) {
             break;
         }
     }
     return approvals;
 }
-async function dismissApprovals({ approvalIds, octokit, prNumber, reason }) {
-    if (approvalIds.length === 0) {
+async function dismissApprovals({ approvals, octokit, prNumber, reason }) {
+    if (approvals.length === 0) {
         return;
     }
     if (core.getBooleanInput('dry-run')) {
@@ -29281,17 +29302,25 @@ async function dismissApprovals({ approvalIds, octokit, prNumber, reason }) {
             owner: github.context.repo.owner,
             repo: github.context.repo.repo,
             issue_number: prNumber,
-            body: `dismiss_stale_approvals dry run: Would have dismissed ${approvalIds.length} approvals with reason:\n\n${reason}`
+            body: `dismiss_stale_approvals dry run: Would have dismissed ${approvals.length} approvals with reason:\n\n${reason}`
         });
         return;
     }
-    await Promise.all(approvalIds.map(approvalId => octokit.rest.pulls.dismissReview({
-        owner: github.context.repo.owner,
-        repo: github.context.repo.repo,
-        pull_number: prNumber,
-        review_id: approvalId,
-        message: reason
-    })));
+    await Promise.all(approvals.map(async (approval) => {
+        // The head can move after listReviews. Fetch it again immediately
+        // before dismissing so an approval of the live head is kept.
+        const headSha = await getPullRequestHeadSha({ octokit, prNumber });
+        if (approval.commit_id === headSha) {
+            return;
+        }
+        await octokit.rest.pulls.dismissReview({
+            owner: github.context.repo.owner,
+            repo: github.context.repo.repo,
+            pull_number: prNumber,
+            review_id: approval.id,
+            message: reason
+        });
+    }));
 }
 
 
