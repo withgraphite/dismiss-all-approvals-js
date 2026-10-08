@@ -39,6 +39,10 @@ export async function run(): Promise<void> {
 
 type Octokit = ReturnType<typeof github.getOctokit>
 
+type ListedReview = Awaited<
+  ReturnType<Octokit['rest']['pulls']['listReviews']>
+>['data'][number]
+
 async function getPullRequestApprovals({
   octokit,
   prNumber,
@@ -47,8 +51,8 @@ async function getPullRequestApprovals({
   octokit: Octokit
   prNumber: number
   headSha: string
-}) {
-  const approvals = []
+}): Promise<ListedReview[]> {
+  const approvals: ListedReview[] = []
 
   for (let page = 1; ; ++page) {
     const result = await octokit.rest.pulls.listReviews({
@@ -92,7 +96,7 @@ async function dismissApprovals({
   octokit: Octokit
   prNumber: number
   reason: string
-}) {
+}): Promise<void> {
   if (approvalIds.length === 0) {
     return
   }
@@ -108,7 +112,7 @@ async function dismissApprovals({
   }
 
   await Promise.all(
-    approvalIds.map(approvalId =>
+    approvalIds.map(async approvalId =>
       octokit.rest.pulls.dismissReview({
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,

@@ -29298,7 +29298,7 @@ async function dismissApprovals({ approvalIds, octokit, prNumber, reason }) {
         });
         return;
     }
-    await Promise.all(approvalIds.map(approvalId => octokit.rest.pulls.dismissReview({
+    await Promise.all(approvalIds.map(async (approvalId) => octokit.rest.pulls.dismissReview({
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
         pull_number: prNumber,
